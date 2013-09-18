@@ -7,3 +7,5 @@ source from
 http://sourceforge.net/p/pymol/code/HEAD/tree/trunk/
 
 Licence: Python License (CNRI Python License)
+
+for more read the README file
