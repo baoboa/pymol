@@ -2,6 +2,92 @@
 CHANGE LOG
 =========================================================================
 
+2013-09-09 Thomas Holder
+
+	* add "x" "y" "z" selection operators
+	  Example: select foo, x < 12.3
+
+2013-09-08 Blaine Bell, Thomas Holder
+
+	* fix seq viewer background color
+
+	* add "backbone" and "sidechain" selection keywords
+
+	* fix: cealign inverts target structure
+
+2013-08-27 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* fix [bugs:#135] array overrun
+	  https://sourceforge.net/p/pymol/bugs/135/
+
+	* apply one part of [patches:#6]
+	  https://sourceforge.net/p/pymol/patches/6/
+
+	* preserve "use_shaders" setting when loading session files
+
+	* simplify pymolrc search routine
+
+	* fix CtSh-M click on group members in object menu panel
+
+	* set_key string support
+
+2013-08-13 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* fix h_add atom sorting
+
+	* add "metals" keyword to selection language
+
+2013-07-31 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* improve amber rst/crd support
+
+	* fix pair_fitting with one atom pair
+
+2013-07-23 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* fix numpy/ndarrayobject.h import
+
+	* setup.py: add --osx-frameworks agument
+
+	* rpc server: use register_instance
+
+2013-07-16 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* fixed load_traj with stop/max arguments.
+	  Thanks to David Osguthorpe for the patch.
+
+	* fix pymol.importing.read_mmodstr
+
+	* proper numpy support (ObjectMap.c)
+
+	* take out broken experimenting.expfit
+
+	* fetch_path: graceful error handling when writing file fails
+
+2013-07-15 Blaine Bell <blaine.bell@schrodinger.com>
+
+	* fixed flickering ortho problems on some machines
+
+2013-06-21 Blaine Bell <blaine.bell@schrodinger.com>
+
+	* fixed selection indicators
+
+2013-06-18 Blaine Bell, Thomas Holder
+
+	* fixed loading in bg_rgb settings from old project pse files
+
+	* add URL support for run command
+
+2013-06-13 Blaine Bell <blaine.bell@schrodinger.com>
+
+	* fixed labels when use_shaders is 0 and show_frame_rate is on
+
+2013-06-12 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* update APBS Tools plugin
+
+	* fix spectrumany when minimum/maximum are provided
+
 2013-06-11 Blaine Bell <blaine.bell@schrodinger.com>
 
 	* Open Source PyMOL v1.6.0.0

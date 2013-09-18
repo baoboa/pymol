@@ -121,7 +121,8 @@ struct _COrtho {
 
 int OrthoBackgroundDataIsSet(PyMOLGlobals *G){
   register COrtho *I = G->Ortho;
-  return (I->bgData != NULL && (I->bgWidth > 0 && I->bgHeight > 0));
+  return (I->bgData && (I->bgWidth > 0 && I->bgHeight > 0));
+  //  return (I->bgCGO != NULL && (I->bgWidth > 0 && I->bgHeight > 0));
 }
 void *OrthoBackgroundDataGet(PyMOLGlobals *G, int *width, int *height){
   register COrtho *I = G->Ortho;
@@ -1517,7 +1518,7 @@ void OrthoDoDraw(PyMOLGlobals * G, int render_mode)
   int overlay, text;
   int rightSceneMargin;
   int internal_feedback;
-  int times = 1;
+  int times = 1, origtimes = 0;
   int double_pump = false;
   float *bg_color;
   int skip_prompt = 0;
@@ -1627,6 +1628,7 @@ void OrthoDoDraw(PyMOLGlobals * G, int render_mode)
 
     SceneGLClearColor(0.0, 0.0, 0.0, 1.0);
 
+    origtimes = times;
     while(times--) {
 
       switch (times) {
@@ -1678,7 +1680,7 @@ void OrthoDoDraw(PyMOLGlobals * G, int render_mode)
 	  } else {
 	    OrthoRenderCGO(G);
 	    OrthoPopMatrix(G);
-	    return;
+	    continue;
 	  }
 	}
       }
@@ -1925,10 +1927,23 @@ void OrthoDoDraw(PyMOLGlobals * G, int render_mode)
 	CGOStop(I->orthoCGO);
 	I->orthoCGO->use_shader = true;
       }
-
-      OrthoPushMatrix(G);
-      OrthoRenderCGO(G);
-      OrthoPopMatrix(G);
+      
+      while(origtimes--){
+	switch (origtimes){
+	case 1:
+	  OrthoDrawBuffer(G, GL_BACK_LEFT);
+	  break;
+	case 0:
+	  if(double_pump) {
+	    OrthoDrawBuffer(G, GL_BACK_RIGHT);
+	  } else
+	    OrthoDrawBuffer(G, GL_BACK);
+	  break;
+	}
+	OrthoPushMatrix(G);
+	OrthoRenderCGO(G);
+	OrthoPopMatrix(G);
+      }
     }
   }
 

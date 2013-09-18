@@ -2,14 +2,14 @@
  
   Author: Greg Landrum (glandrum@users.sourceforge.net)
   Created:       January 2002
-  $LastChangedDate: 2013-04-17 21:26:34 +0200 (Wed, 17 Apr 2013) $
+  $LastChangedDate: 2013-07-23 12:02:08 +0200 (Tue, 23 Jul 2013) $
   License:  PyMol
   Requires:
             - a python xmlrpclib distribution containing the SimpleXMLRPCServer
               module (1.0 or greater should be fine)
             - python with threading enabled  
  
-  RD Version: $Rev: 4027 $            
+  RD Version: $Rev: 4037 $            
 
   Modified 2013-04-17 Thomas Holder, Schrodinger, Inc.
 """
@@ -436,10 +436,7 @@ def launch_XMLRPC(hostname='',port=_xmlPort,nToTry=_nPortsToTry):
 
     # import PyMOL API
     from pymol import api
-    for name in dir(api):
-      func = getattr(api, name)
-      if callable(func):
-        serv.register_function(func, name)
+    serv.register_instance(cmd)
 
     # legacy stuff with unique names
     serv.register_function(rpcPing,'ping')

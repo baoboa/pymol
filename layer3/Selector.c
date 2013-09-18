@@ -79,6 +79,19 @@ static WordKeyValue rep_names[] = {
   {"",},
 };
 
+static char *backbone_names[] = {
+  // protein
+  "CA", "C", "O", "N", "OXT", "H",
+  // nucleic acid
+  "P", "OP1", "OP2", "OP3", "C1'", "C2'", "O2'",
+  "C3'", "O3'", "C4'", "O4'", "C5'", "O5'",
+  "H1'", "H3'", "H4'",
+  "H2'", "H2''", "H12'", "H22'",
+  "H5'", "H5''", "H15'", "H25'",
+  "HO2'", "HO3'", "HO5'",
+  ""
+};
+
 typedef struct {
   int level, imp_op_level;
   int type;                     /* 0 = value 1 = operation 2 = pre-operation */
@@ -143,7 +156,7 @@ static int SelectorGetArrayNCSet(PyMOLGlobals * G, int *array, int no_dummies);
 static int SelectorModulate1(PyMOLGlobals * G, EvalElem * base, int state);
 static int SelectorSelect0(PyMOLGlobals * G, EvalElem * base);
 static int SelectorSelect1(PyMOLGlobals * G, EvalElem * base, int quiet);
-static int SelectorSelect2(PyMOLGlobals * G, EvalElem * base);
+static int SelectorSelect2(PyMOLGlobals * G, EvalElem * base, int state);
 static int SelectorLogic1(PyMOLGlobals * G, EvalElem * base, int state);
 static int SelectorLogic2(PyMOLGlobals * G, EvalElem * base);
 static int SelectorOperator22(PyMOLGlobals * G, EvalElem * base, int state);
@@ -343,6 +356,12 @@ static int SelectorGetObjAtmOffset(CSelector * I, ObjectMolecule * obj, int offs
 #define SELE_ANT2 ( 0x4900 | STYP_OPR2 | 0x60 )
 #define SELE_BYX1 ( 0x4A00 | STYP_OPR1 | 0x20 )
 #define SELE_STRO ( 0x4B00 | STYP_SEL1 | 0x80 )
+#define SELE_METz ( 0x4C00 | STYP_SEL0 | 0x90 )
+#define SELE_BB_z ( 0x4D00 | STYP_SEL0 | 0x90 )
+#define SELE_SC_z ( 0x4E00 | STYP_SEL0 | 0x90 )
+#define SELE_XVLx ( 0x5000 | STYP_SEL2 | 0x80 )
+#define SELE_YVLx ( 0x5100 | STYP_SEL2 | 0x80 )
+#define SELE_ZVLx ( 0x5200 | STYP_SEL2 | 0x80 )
 
 #define SEL_PREMAX 0x8
 
@@ -579,6 +598,19 @@ static WordKeyValue Keyword[] = {
   {"stereo", SELE_STRO},
 
   {"bycell", SELE_BYX1},
+
+  {"metals", SELE_METz},        /* 0 parameter */
+
+  {"backbone", SELE_BB_z},
+  {"bb.", SELE_BB_z},
+
+  {"sidechain", SELE_SC_z},
+  {"sc.", SELE_SC_z},
+
+  {"x", SELE_XVLx},
+  {"y", SELE_YVLx},
+  {"z", SELE_ZVLx},
+
   {"", 0}
 };
 
@@ -594,6 +626,19 @@ static WordKeyValue AtOper[] = {
   {"=", SCMP_EQAL},
   {"", 0}
 };
+
+static short fcmp(float a, float b, int oper) {
+  switch (oper) {
+  case SCMP_GTHN:
+    return (a > b);
+  case SCMP_LTHN:
+    return (a < b);
+  case SCMP_EQAL:
+    return (a == b);
+  }
+  printf("ERROR: invalid operator %d\n", oper);
+  return false;
+}
 
 #define cINTER_ENTRIES 11
 
@@ -7281,6 +7326,7 @@ static void SelectorPurgeMembers(PyMOLGlobals * G, int sele)
   register CSelector *I = G->Selector;
   void *iterator = NULL;
   ObjectMolecule *obj = NULL;
+  short changed = 0;
 
   if(I->Member) {
     register MemberType *I_Member = I->Member;
@@ -7301,6 +7347,7 @@ static void SelectorPurgeMembers(PyMOLGlobals * G, int sele)
                 I_Member[l].next = i_member_s->next;
               else
                 ai[-1].selEntry = i_member_s->next;
+	      changed = 1;
               i_member_s->next = I_FreeMember;
               I_FreeMember = s;
             }
@@ -7312,6 +7359,9 @@ static void SelectorPurgeMembers(PyMOLGlobals * G, int sele)
     }
     I->FreeMember = I_FreeMember;
   }
+  if (changed){
+    ExecutiveInvalidateSelectionIndicatorsCGO(G);
+  }
 }
 
 
@@ -7321,9 +7371,10 @@ int SelectorPurgeObjectMembers(PyMOLGlobals * G, ObjectMolecule * obj)
   int a = 0;
   int s = 0;
   int nxt;
+  short changed = 0;
 
   register CSelector *I = G->Selector;
-  if(I->Member)
+  if(I->Member){
     for(a = 0; a < obj->NAtom; a++) {
       s = obj->AtomInfo[a].selEntry;
       while(s) {
@@ -7333,7 +7384,12 @@ int SelectorPurgeObjectMembers(PyMOLGlobals * G, ObjectMolecule * obj)
         s = nxt;
       }
       obj->AtomInfo[a].selEntry = 0;
+      changed = 1;
     }
+  }
+  if (changed){
+    ExecutiveInvalidateSelectionIndicatorsCGO(G);
+  }
   return 1;
 }
 
@@ -7869,6 +7925,7 @@ static void SelectorCleanImpl(PyMOLGlobals * G, CSelector *I)
   FreeP(I->Flag2);
   I->Flag2 = NULL;
   I->NAtom = 0;
+  ExecutiveInvalidateSelectionIndicatorsCGO(G);
 }
 
 
@@ -8595,6 +8652,39 @@ static int SelectorSelect0(PyMOLGlobals * G, EvalElem * passed_base)
     for(a = cNDummyAtoms; a < I->NAtom; a++)
       base[0].sele[a] = i_obj[i_table[a].model]->AtomInfo[i_table[a].atom].hydrogen;
     break;
+  case SELE_METz:
+    for(a = cNDummyAtoms; a < I->NAtom; a++) {
+      b = i_obj[i_table[a].model]->AtomInfo[i_table[a].atom].protons;
+      base[0].sele[a] = (
+          b >  2 && b <  5 ||
+          b > 10 && b < 14 ||
+          b > 18 && b < 32 ||
+          b > 36 && b < 51 ||
+          b > 54 && b < 85 ||
+          b > 86);
+    }
+    break;
+  case SELE_BB_z:
+  case SELE_SC_z:
+    {
+      AtomInfoType *ai;
+      flag = (base->code == SELE_BB_z);
+      for(a = cNDummyAtoms; a < I->NAtom; a++) {
+        ai = i_obj[i_table[a].model]->AtomInfo + i_table[a].atom;
+        if(!(ai->flags & cAtomFlag_polymer)) {
+          base[0].sele[a] = 0;
+          continue;
+        }
+        base[0].sele[a] = !flag;
+        for(b = 0; backbone_names[b][0]; b++) {
+          if(!(strcmp(ai->name, backbone_names[b]))) {
+            base[0].sele[a] = flag;
+            break;
+          }
+        }
+      }
+    }
+    break;
   case SELE_FXDz:
     for(a = cNDummyAtoms; a < I->NAtom; a++)
       base[0].sele[a] =
@@ -9013,8 +9103,8 @@ static int SelectorSelect1(PyMOLGlobals * G, EvalElem * base, int quiet)
             if(!(st = OVLexicon_FetchCString(G->Lexicon, ai->custom)))
               st = null_st;
 	  }
-          if((*base_0_sele_a = WordMatcherMatchAlpha(matcher, st)));
-          c++;
+          if((*base_0_sele_a = WordMatcherMatchAlpha(matcher, st)))
+	    c++;
           table_a++;
           base_0_sele_a++;
         }
@@ -9593,7 +9683,7 @@ static int SelectorSelect1(PyMOLGlobals * G, EvalElem * base, int quiet)
 
 
 /*========================================================================*/
-static int SelectorSelect2(PyMOLGlobals * G, EvalElem * base)
+static int SelectorSelect2(PyMOLGlobals * G, EvalElem * base, int state)
 {
   int a;
   int c = 0;
@@ -9609,6 +9699,68 @@ static int SelectorSelect2(PyMOLGlobals * G, EvalElem * base)
   base->sele = Calloc(int, I->NAtom);
   ErrChkPtr(G, base->sele);
   switch (base->code) {
+  case SELE_XVLx:
+  case SELE_YVLx:
+  case SELE_ZVLx:
+    oper = WordKey(G, AtOper, base[1].text, 4, ignore_case, &exact);
+    switch (oper) {
+    case SCMP_GTHN:
+    case SCMP_LTHN:
+    case SCMP_EQAL:
+      if(sscanf(base[2].text, "%f", &comp1) != 1)
+        ok = ErrMessage(G, "Selector", "Invalid Number");
+      break;
+    default:
+      ok = ErrMessage(G, "Selector", "Invalid Operator.");
+      break;
+    }
+    if(ok) {
+      ObjectMolecule *obj;
+      CoordSet *cs;
+      int at, idx, s, s0 = 0, sN = I->NCSet;
+
+      if(state != -1) {
+        s0 = (state < -1) ? SceneGetState(G) : state;
+        sN = s0 + 1;
+      }
+
+      for(a = cNDummyAtoms; a < I->NAtom; a++)
+        base[0].sele[a] = false;
+
+      for(s = s0; s < sN; s++) {
+        for(a = cNDummyAtoms; a < I->NAtom; a++) {
+          if(base[0].sele[a])
+            continue;
+
+          obj = I->Obj[I->Table[a].model];
+          if(s >= obj->NCSet)
+            continue;
+
+          at = I->Table[a].atom;
+          cs = obj->CSet[s];
+          if(!obj->DiscreteFlag) {
+            idx = cs->AtmToIdx[at];
+          } else if(cs == obj->DiscreteCSet[at]) {
+            idx = obj->DiscreteAtmToIdx[at];
+          } else {
+            continue;
+          }
+          if(idx < 0)
+            continue;
+
+          idx *= 3;
+          switch (base->code) {
+          case SELE_ZVLx:
+            idx++;
+          case SELE_YVLx:
+            idx++;
+          }
+
+          base[0].sele[a] = fcmp(cs->Coord[idx], comp1, oper);
+        }
+      }
+    }
+    break;
   case SELE_PCHx:
   case SELE_FCHx:
   case SELE_BVLx:
@@ -10971,7 +11123,7 @@ int *SelectorEvaluate(PyMOLGlobals * G, SelectorWordType * word, int state, int 
                    && (Stack[depth - 1].type == STYP_VALU)
                    && (Stack[depth].type == STYP_VALU)) {
                   /* 2 argument value operator */
-                  ok = SelectorSelect2(G, &Stack[depth - 2]);
+                  ok = SelectorSelect2(G, &Stack[depth - 2], state);
                   opFlag = true;
                   for(a = depth + 1; a <= totDepth; a++)
                     Stack[a - 2] = Stack[a];
